@@ -12,6 +12,9 @@ import { CoreSystem } from './core/CoreSystem';
 import { CommunicationModule } from './modules/CommunicationModule';
 import { SelfUpdateModule } from './modules/SelfUpdateModule';
 import { SecurityModule } from './modules/SecurityModule';
+import { NetworkDiscovery } from './network/NetworkDiscovery';
+import { AIDecisionEngine } from './ai/AIDecisionEngine';
+import { PersistentStorage } from './storage/PersistentStorage';
 
 class ZiweiSaint {
   private app: express.Application;
@@ -21,6 +24,9 @@ class ZiweiSaint {
   private communicationModule: CommunicationModule;
   private selfUpdateModule: SelfUpdateModule;
   private securityModule: SecurityModule;
+  private networkDiscovery: NetworkDiscovery;
+  private aiDecisionEngine: AIDecisionEngine;
+  private persistentStorage: PersistentStorage;
   
   constructor() {
     this.app = express();
@@ -28,6 +34,9 @@ class ZiweiSaint {
     this.communicationModule = new CommunicationModule();
     this.selfUpdateModule = new SelfUpdateModule();
     this.securityModule = new SecurityModule();
+    this.networkDiscovery = new NetworkDiscovery();
+    this.aiDecisionEngine = new AIDecisionEngine();
+    this.persistentStorage = new PersistentStorage();
     
     this.setupExpress();
     this.setupWebSocket();
@@ -72,6 +81,73 @@ class ZiweiSaint {
         res.json(result);
       } catch (error) {
         res.status(500).json({ error: 'Internal processing error' });
+      }
+    });
+    
+    // Network discovery endpoints
+    this.app.get('/api/network/discover', async (req, res) => {
+      try {
+        const instances = await this.networkDiscovery.discoverNearbyInstances();
+        res.json(instances);
+      } catch (error) {
+        res.status(500).json({ error: 'Network discovery failed' });
+      }
+    });
+    
+    // AI decision endpoint
+    this.app.post('/api/ai/decide', async (req, res) => {
+      try {
+        const decision = await this.aiDecisionEngine.makeDecision(req.body.input);
+        res.json(decision);
+      } catch (error) {
+        res.status(500).json({ error: 'Decision making failed' });
+      }
+    });
+    
+    // Storage endpoints
+    this.app.post('/api/storage/set', async (req, res) => {
+      try {
+        const success = await this.persistentStorage.set(
+          req.body.key, 
+          req.body.value, 
+          { tags: req.body.tags, ttl: req.body.ttl }
+        );
+        res.json({ success });
+      } catch (error) {
+        res.status(500).json({ error: 'Storage operation failed' });
+      }
+    });
+    
+    this.app.get('/api/storage/get/:key', async (req, res) => {
+      try {
+        const value = this.persistentStorage.get(req.params.key);
+        res.json({ value, key: req.params.key });
+      } catch (error) {
+        res.status(500).json({ error: 'Retrieval failed' });
+      }
+    });
+    
+    // System stats endpoint
+    this.app.get('/api/stats', async (req, res) => {
+      try {
+        const storageStats = this.persistentStorage.getStorageStats();
+        const decisionStats = this.aiDecisionEngine.getDecisionStats();
+        const securityStats = this.securityModule.getSecurityStatus();
+        const networkStats = await this.networkDiscovery.getKnownInstances();
+        
+        res.json({
+          system: 'Ziwei Saint 1.0',
+          timestamp: new Date().toISOString(),
+          storage: storageStats,
+          decisions: decisionStats,
+          security: securityStats,
+          network: {
+            totalKnownInstances: networkStats.length,
+            connectedInstances: networkStats.filter(i => i.status === 'verified').length
+          }
+        });
+      } catch (error) {
+        res.status(500).json({ error: 'Stats retrieval failed' });
       }
     });
   }
